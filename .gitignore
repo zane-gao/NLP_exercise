@@ -6,6 +6,7 @@
 *.out
 *.synctex.gz
 *.xdv
+build/
 
 # macOS
 .DS_Store

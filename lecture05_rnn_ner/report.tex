@@ -1,14 +1,16 @@
 %!TEX program = xelatex
 \documentclass[UTF8,10pt,a4paper,fontset=none]{ctexart}
 
-\usepackage[a4paper,top=1.1cm,bottom=1.1cm,left=1.25cm,right=1.25cm]{geometry}
+\usepackage[a4paper,top=1.05cm,bottom=1.05cm,left=1.25cm,right=1.25cm]{geometry}
 \usepackage{amsmath,amssymb}
 \usepackage{booktabs}
 \usepackage{array}
+\usepackage{float}
 \usepackage[most]{tcolorbox}
 \usepackage{xcolor}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning}
+\usepackage[ruled,lined,linesnumbered]{algorithm2e}
 \usepackage{enumitem}
 \usepackage[hidelinks]{hyperref}
 
@@ -24,93 +26,183 @@
 \definecolor{SoftGreen}{HTML}{EEF6EA}
 \definecolor{SoftOrange}{HTML}{F8EFE4}
 
-\setlength{\parindent}{1.5em}
+\setlength{\parindent}{1.45em}
 \setlength{\parskip}{0.08em}
-\linespread{1.02}
-\setlist[itemize]{leftmargin=1.25em,itemsep=0.04em,topsep=0.05em}
-\setlist[enumerate]{leftmargin=1.35em,itemsep=0.04em,topsep=0.05em}
-\ctexset{section={format=\large\bfseries,beforeskip=0.45em,afterskip=0.18em}}
+\linespread{1.04}
+\setlist[itemize]{leftmargin=1.2em,itemsep=0.03em,topsep=0.04em}
+\ctexset{section={format=\large\bfseries,beforeskip=0.42em,afterskip=0.16em}}
+\DontPrintSemicolon
+\SetAlgoNlRelativeSize{-1}
+\SetAlCapSkip{0.3em}
 
 \newtcolorbox{note}[2][]{
   enhanced,colback=#2,colframe=Ink!65,boxrule=0.45pt,arc=0.8mm,
   left=1mm,right=1mm,top=0.7mm,bottom=0.7mm,title=#1,fonttitle=\bfseries\small
 }
-\tikzset{box/.style={draw,rounded corners=1pt,align=center,font=\scriptsize,minimum height=5.8mm,text width=2.05cm},arr/.style={-{Stealth[length=1.8mm]},line width=0.45pt}}
+\tikzset{
+  box/.style={draw,rounded corners=1pt,align=center,font=\scriptsize,minimum height=5.8mm,text width=2.1cm},
+  arr/.style={-{Stealth[length=1.8mm]},line width=0.45pt}
+}
 
-\title{\vspace{-0.9cm}\textbf{第5讲：RNN命名实体识别}\\[-1mm]\normalsize 从单向序列状态到多粒度上下文融合}
-\author{高展沛}
-\date{\vspace{-0.45cm}2026年6月}
+\title{\vspace{-0.9cm}\textbf{第5讲：RNN 命名实体识别}\\[2mm]\normalsize 从单向序列状态到多粒度上下文融合}
+\author{高展沛（2023212036）}
+\date{}
 
 \begin{document}
 \maketitle
-\vspace{-0.65cm}
+\vspace{-0.95cm}
 
-\section{课堂任务：RNN-NER 伪代码}
-命名实体识别输入句子 $x_1,\ldots,x_n$，输出同长度 BIO 标签 $y_1,\ldots,y_n$。单向 RNN 基线把左侧历史压入状态：
+\section{课堂任务：RNN-NER}
+命名实体识别输入句子 $x_1,\ldots,x_n$，输出同长度 BIO 标签 $y_1,\ldots,y_n$，例如 \texttt{B-PER/I-PER/B-ORG/I-ORG/O}。单向 RNN 基线把左侧历史写入隐状态：
 \[
-h_t=\tanh(W_xE[x_t]+W_hh_{t-1}+b),\qquad
-s_t=W_yh_t+b_y,
+h_t=\tanh(W_xE[x_t]+W_hh_{t-1}+b),\qquad s_t=W_yh_t+b_y,
 \]
 \[
 p(y_t\mid x_{\le t})=\mathrm{softmax}(s_t),\qquad
 \mathcal{L}=\frac{1}{n}\sum_t-\log p(y_t^\star\mid x_{\le t}).
 \]
+它是最小可解释模型：embedding 负责词语含义，RNN 状态负责历史上下文，线性层负责把状态映射到标签空间。
 
-\begin{note}[训练伪代码]{SoftBlue}
-\begin{enumerate}
-  \item 建 token 词表和 BIO 标签表，如 \texttt{B-PER,I-PER,B-ORG,I-ORG,O}。
-  \item 初始化 embedding、RNN 参数和线性分类器。
-  \item 对每个句子从左到右递推 $h_t$，由 $s_t$ 预测当前位置标签。
-  \item 对所有位置求交叉熵平均，调用反向传播更新参数。
-  \item 验证时把预测 BIO 序列转换为实体 span，按实体级 precision/recall/F1 评测。
-\end{enumerate}
-\end{note}
+\begin{algorithm}[H]
+\caption{基于 RNN 的 NER 训练、解码与评测}
+\KwIn{标注语料 $\mathcal{S}=\{(x_{1:n},y_{1:n})\}$，token 词表，BIO 标签表，学习率 $\eta$}
+\KwOut{RNN-NER 参数与实体级 Precision/Recall/F1}
+初始化 embedding $E$、RNN 参数 $W_x,W_h,b$、分类器 $W_y,b_y$\;
+\For{$epoch=1$ \KwTo $K$}{
+  打乱训练句子\;
+  \ForEach{句子 $(x_{1:n},y_{1:n})$}{
+    $h_0\leftarrow \mathbf{0}$，$\mathcal{L}\leftarrow 0$\;
+    \For{$t=1$ \KwTo $n$}{
+      $e_t\leftarrow E[\mathrm{id}(x_t)]$\;
+      $h_t\leftarrow \tanh(W_xe_t+W_hh_{t-1}+b)$\tcp*{左上下文递推}
+      $s_t\leftarrow W_yh_t+b_y$，$p_t\leftarrow \mathrm{softmax}(s_t)$\;
+      $\mathcal{L}\leftarrow \mathcal{L}-\log p_t[y_t]$\;
+    }
+    对 $\mathcal{L}/n$ 反向传播并更新参数\;
+  }
+}
+推理时逐词取 $\arg\max p_t$，再修复非法 BIO 转移\;
+将 BIO 序列转换为实体 span，按完全匹配计算 Precision/Recall/F1\;
+\end{algorithm}
 
-\begin{note}[解码伪代码]{SoftGreen}
-推理阶段逐词取 $\arg\max_y p(y_t)$ 得到初始标签；随后检查 BIO 合法性。若出现 \texttt{O I-ORG} 或 \texttt{B-PER I-LOC} 这类非法转移，可按规则改为 \texttt{B-ORG} 或置为 \texttt{O}。更好的做法是在顶层接 CRF，由 Viterbi 直接搜索全局合法最优序列。
-\end{note}
+若出现 \texttt{O I-ORG} 或 \texttt{B-PER I-LOC}，说明逐词 softmax 缺少标签结构约束；这正是后续 CRF 解码要解决的问题。
 
-\section{为什么单向 RNN 不够}
-NER 不是孤立词分类。实体边界常由左右词共同决定，例如“苹果 发布 新机”中的“苹果”更像组织，而“买了 苹果”中的“苹果”更像普通名词。单向 RNN 在位置 $t$ 只能直接看到 $x_{\le t}$，右侧证据要到未来才进入状态，当前标签判断天然滞后。同时，逐词 softmax 不知道标签之间的结构约束，容易输出局部高分但整体非法的 BIO 序列。
+\section{基线诊断}
+\small
+\begin{tabular}{@{}p{0.25\linewidth}p{0.32\linewidth}p{0.35\linewidth}@{}}
+\toprule
+错误类型 & 例子 & 暴露的问题 \\
+\midrule
+边界断裂 & \texttt{B-ORG O I-ORG} & 逐词分类没有全局 span 意识 \\
+类型漂移 & \texttt{B-PER I-LOC} & 标签转移未约束实体内部一致性 \\
+右侧缺失 & “苹果 发布 新机” & 单向 RNN 当前位点看不到后文 \\
+OOV 实体 & “某某科技园” & 纯词 embedding 无法利用后缀形态 \\
+\bottomrule
+\end{tabular}
+\normalsize
 
-\section{上下文增强方案}
-推荐的工程路线是 BiLSTM/GRU + 字符特征 + CRF：
-\[
-z_t=[e_t^{word};e_t^{char}],\quad
-\overrightarrow h_t=RNN_f(z_t,\overrightarrow h_{t-1}),
-\]
-\[
-\overleftarrow h_t=RNN_b(z_t,\overleftarrow h_{t+1}),\quad
-o_t=[\overrightarrow h_t;\overleftarrow h_t].
-\]
-CRF 分数为
-\[
-score(x,y)=\sum_t s_t[y_t]+\sum_t A[y_{t-1},y_t],
-\]
-其中 $A$ 学习标签转移规律，Viterbi 负责全局解码。
+训练时最小日志应包含 loss、token accuracy 和实体级 F1。若 token accuracy 高但实体 F1 低，通常说明模型学会了大量 \texttt{O} 标签，却没有稳定识别完整实体边界。
+
+\small
+\begin{tabular}{@{}p{0.22\linewidth}p{0.28\linewidth}p{0.42\linewidth}@{}}
+\toprule
+张量 & 形状 & 含义 \\
+\midrule
+token ids & $[n]$ 或 $[B,n]$ & 原句 token 的整数编号，padding 位置需 mask \\
+embedding & $[n,d]$ & 每个 token 的词向量或词+字符拼接向量 \\
+hidden states & $[n,h]$ & RNN 对每个位置累积出的上下文状态 \\
+emission scores & $[n,L]$ & 每个位置到 $L$ 个 BIO 标签的发射分数 \\
+entity spans & $(l,r,type)$ & 评测时真正关心的实体级输出 \\
+\bottomrule
+\end{tabular}
+\normalsize
+
+\clearpage
+
+\section{探索：如何同时利用上下文}
+单向 RNN 的缺陷是当前位置只能直接看到左侧历史。实体类型常由左右词共同决定，例如“苹果 发布 新机”中的“苹果”偏组织，“买了 苹果”偏普通名词。更强模型应同时利用四类上下文：字符形态、左右句内语境、标签转移结构和文档实体历史。
 
 \begin{center}
-\resizebox{0.96\linewidth}{!}{%
+\resizebox{0.94\linewidth}{!}{%
 \begin{tikzpicture}[node distance=5mm]
 \node[box,fill=SoftBlue,draw=Blue] (a) {word/char\\特征};
 \node[box,fill=SoftGreen,draw=Green,right=of a] (b) {BiLSTM\\左右上下文};
 \node[box,fill=SoftGreen,draw=Green,right=of b] (c) {线性层\\发射分数};
 \node[box,fill=SoftOrange,draw=Orange,right=of c] (d) {CRF\\标签结构};
-\node[box,fill=SoftOrange,draw=Orange,right=of d] (e) {实体span\\F1评测};
+\node[box,fill=SoftOrange,draw=Orange,right=of d] (e) {实体 span\\F1评测};
 \draw[arr] (a) -- (b);\draw[arr] (b) -- (c);\draw[arr] (c) -- (d);\draw[arr] (d) -- (e);
 \end{tikzpicture}}
 \end{center}
 
+推荐基线升级为 BiLSTM/GRU + CRF：
+\[
+z_t=[e_t^{word};e_t^{char}],\quad
+\overrightarrow h_t=RNN_f(z_t,\overrightarrow h_{t-1}),\quad
+\overleftarrow h_t=RNN_b(z_t,\overleftarrow h_{t+1}),
+\]
+\[
+o_t=[\overrightarrow h_t;\overleftarrow h_t],\qquad
+score(x,y)=\sum_t s_t[y_t]+\sum_t A[y_{t-1},y_t].
+\]
+其中 $A$ 学习标签转移规律，Viterbi 在整句上搜索全局最优 BIO 序列。字符特征能处理未登录词和实体后缀，如“大学、公司、集团、省、市、路”；CRF 则阻止非法边界。
+
+\small
+\begin{tabular}{@{}p{0.23\linewidth}p{0.34\linewidth}p{0.34\linewidth}@{}}
+\toprule
+上下文来源 & 捕获的信息 & 对 NER 的作用 \\
+\midrule
+字符/子词 & 词形、后缀、中文构词 & 缓解 OOV，识别机构/地点模式 \\
+双向句内状态 & 左右搭配与句法线索 & 消歧实体类型，定位边界 \\
+CRF 标签转移 & BIO 合法性与类型一致性 & 避免局部最优标签序列 \\
+文档级记忆 & 别名、简称、跨句复现 & 解决长距离指代和简称实体 \\
+\bottomrule
+\end{tabular}
+\normalsize
+
 \section{突破方案：多粒度上下文记忆}
-进一步的创新设计是加入文档级实体记忆。模型先抽取高置信实体，保存字符串、类型分布、别名和最近出现位置；后文遇到简称或歧义词时，把记忆向量与句内向量门控融合：
+文档级增强可维护实体记忆表：保存高置信实体字符串、类型分布、别名和最近出现位置。当前 token 的句内表示 $o_t$ 与记忆表示 $m_t$ 通过门控融合：
 \[
 g_t=\sigma(W_g[o_t;m_t]+b_g),\qquad
 r_t=g_t\odot o_t+(1-g_t)\odot m_t.
 \]
-当句内证据强时依赖 $o_t$，当当前句子模糊时调用文档记忆 $m_t$。若数据和算力允许，可把 BiLSTM encoder 替换为中文 BERT/MacBERT，再保留 CRF 作为结构化解码层。
+当句内证据强时模型依赖 $o_t$，当当前句子模糊时调用 $m_t$。若算力允许，可用中文 BERT/MacBERT 替代 BiLSTM encoder，再保留 CRF 作为结构化解码层；这样既吸收大规模预训练语义，又不放弃 BIO 约束。
 
 \begin{note}[最终判断]{SoftOrange}
-CBOW 学的是“词通常和谁共现”，NER 要判断“词此刻在上下文中扮演什么角色”。因此强 NER 系统必须同时利用字符形态、左右句内语境、标签转移约束和文档级实体历史；这比单向 RNN 更接近真实语言理解。
+CBOW 学的是“词通常和谁共现”，NER 要判断“词此刻在上下文中扮演什么角色”。强 NER 系统必须让词表示被字符形态、左右语境、标签结构和文档历史共同校正。验证时除实体级 F1 外，还应单独报告 OOV 实体 F1 与跨句别名 F1，确认新增上下文确实发挥作用。
 \end{note}
+
+\section{完成物与验收}
+本作业给出 RNN-NER 伪代码、BIO 解码规则、BiLSTM-CRF 方案和文档记忆扩展。最小工程验证应包括：构造含非法 BIO 的样例检查修复规则；比较单向 RNN 与 BiRNN 的实体级 F1；加入字符特征后测试 OOV 实体；加入文档记忆后测试简称识别。这样能把“利用上下文”从口号落到可测指标上。
+
+\small
+\begin{tabular}{@{}p{0.24\linewidth}p{0.32\linewidth}p{0.36\linewidth}@{}}
+\toprule
+消融设置 & 应验证的能力 & 关键观察 \\
+\midrule
+RNN $\rightarrow$ BiRNN & 是否需要右上下文 & 机构名、地点名边界应更完整 \\
+无 char $\rightarrow$ char & 是否利用词形模式 & OOV 实体 F1 应提升 \\
+softmax $\rightarrow$ CRF & 是否利用标签结构 & 非法 BIO 与类型漂移应下降 \\
+无记忆 $\rightarrow$ 文档记忆 & 是否利用跨句线索 & 简称、别名实体召回应提升 \\
+\bottomrule
+\end{tabular}
+\normalsize
+
+最终系统不追求“模块最多”，而追求每个新增上下文来源都能被独立验证。只有当消融实验显示某类错误被真实压低时，复杂模型才算带来有效创新。
+
+\section{风险控制}
+\small
+\begin{tabular}{@{}p{0.22\linewidth}p{0.35\linewidth}p{0.35\linewidth}@{}}
+\toprule
+风险 & 表现 & 控制办法 \\
+\midrule
+类别不均衡 & 模型倾向预测 \texttt{O} & 实体级 F1、类别加权或采样重平衡 \\
+过拟合后缀 & 看到“公司”就预测机构 & 加入反例，结合上下文而非只看词形 \\
+记忆污染 & 错误实体进入文档记忆 & 只写入高置信 span，并设置衰减权重 \\
+预训练错配 & BERT 特征强但边界不稳 & 顶层保留 CRF，按实体 span 调参 \\
+\bottomrule
+\end{tabular}
+\normalsize
+
+这份设计的突破性不在于堆叠名词，而在于给每一种上下文一个明确职责：字符处理未登录词，双向状态处理左右证据，CRF 处理标签结构，文档记忆处理跨句复现。职责清楚，实验才可复现。
 
 \end{document}
