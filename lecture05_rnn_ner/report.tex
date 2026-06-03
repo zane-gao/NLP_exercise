@@ -34,6 +34,7 @@
 \DontPrintSemicolon
 \SetAlgoNlRelativeSize{-1}
 \SetAlCapSkip{0.3em}
+\pagestyle{plain}
 
 \newtcolorbox{note}[2][]{
   enhanced,colback=#2,colframe=Ink!65,boxrule=0.45pt,arc=0.8mm,
@@ -50,9 +51,10 @@
 
 \begin{document}
 \maketitle
+\thispagestyle{plain}
 \vspace{-0.95cm}
 
-\section{课堂任务：RNN-NER}
+\section{任务：RNN-NER}
 命名实体识别输入句子 $x_1,\ldots,x_n$，输出同长度 BIO 标签 $y_1,\ldots,y_n$，例如 \texttt{B-PER/I-PER/B-ORG/I-ORG/O}。单向 RNN 基线把左侧历史写入隐状态：
 \[
 h_t=\tanh(W_xE[x_t]+W_hh_{t-1}+b),\qquad s_t=W_yh_t+b_y,

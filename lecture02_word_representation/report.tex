@@ -34,6 +34,7 @@
 \DontPrintSemicolon
 \SetAlgoNlRelativeSize{-1}
 \SetAlCapSkip{0.3em}
+\pagestyle{plain}
 
 \newtcolorbox{note}[2][]{
   enhanced,colback=#2,colframe=Ink!65,boxrule=0.45pt,arc=0.8mm,
@@ -50,9 +51,10 @@
 
 \begin{document}
 \maketitle
+\thispagestyle{plain}
 \vspace{-0.95cm}
 
-\section{课堂任务：单隐藏层 CBOW}
+\section{任务：单隐藏层 CBOW}
 给定语料 $w_1,\ldots,w_T$，窗口半径 $c$，CBOW 用上下文
 $C_t=\{w_{t-c},\ldots,w_{t-1},w_{t+1},\ldots,w_{t+c}\}$ 预测中心词 $w_t$，最大化
 $\sum_t \log p_\theta(w_t\mid C_t)$。单隐藏层 MLP 的前向计算为
