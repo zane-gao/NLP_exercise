@@ -1,0 +1,111 @@
+%!TEX program = xelatex
+\documentclass[UTF8,10pt,a4paper,fontset=none]{ctexart}
+
+\usepackage[a4paper,top=1.1cm,bottom=1.1cm,left=1.25cm,right=1.25cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage[most]{tcolorbox}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+\setCJKmainfont{Heiti SC}
+\setCJKsansfont{Heiti SC}
+\setCJKmonofont{Hiragino Sans GB}
+
+\definecolor{Ink}{HTML}{172033}
+\definecolor{Blue}{HTML}{1F4E79}
+\definecolor{Green}{HTML}{2A9D8F}
+\definecolor{Orange}{HTML}{C86B1F}
+\definecolor{SoftBlue}{HTML}{EAF3F8}
+\definecolor{SoftGreen}{HTML}{EEF6EA}
+\definecolor{SoftOrange}{HTML}{F8EFE4}
+
+\setlength{\parindent}{1.5em}
+\setlength{\parskip}{0.08em}
+\linespread{1.02}
+\setlist[itemize]{leftmargin=1.25em,itemsep=0.04em,topsep=0.05em}
+\setlist[enumerate]{leftmargin=1.35em,itemsep=0.04em,topsep=0.05em}
+\ctexset{section={format=\large\bfseries,beforeskip=0.45em,afterskip=0.18em}}
+
+\newtcolorbox{note}[2][]{
+  enhanced,colback=#2,colframe=Ink!65,boxrule=0.45pt,arc=0.8mm,
+  left=1mm,right=1mm,top=0.7mm,bottom=0.7mm,title=#1,fonttitle=\bfseries\small
+}
+\tikzset{box/.style={draw,rounded corners=1pt,align=center,font=\scriptsize,minimum height=5.8mm,text width=2.05cm},arr/.style={-{Stealth[length=1.8mm]},line width=0.45pt}}
+
+\title{\vspace{-0.9cm}\textbf{第2讲：词表示}\\[-1mm]\normalsize 单隐藏层 MLP 版朴素 CBOW 与静态词向量反思}
+\author{高展沛}
+\date{\vspace{-0.45cm}2026年6月}
+
+\begin{document}
+\maketitle
+\vspace{-0.65cm}
+
+\section{课堂任务：朴素 CBOW}
+给定语料 $w_1,\ldots,w_T$，窗口半径 $c$，CBOW 用中心词两侧上下文
+$C_t=\{w_{t-c},\ldots,w_{t-1},w_{t+1},\ldots,w_{t+c}\}$ 预测 $w_t$：
+\[
+\max_\theta \sum_t \log p_\theta(w_t\mid C_t).
+\]
+单隐藏层 MLP 结构如下：
+\[
+x_t=\frac{1}{|C_t|}\sum_{w\in C_t}E[w],\qquad
+h_t=\tanh(W_hx_t+b_h),
+\]
+\[
+p(w_t\mid C_t)=\mathrm{softmax}(W_oh_t+b_o),\qquad
+\mathcal{L}_t=-\log p(w_t\mid C_t).
+\]
+其中 $E$ 是词向量矩阵，也是训练结束后要保存的表示。
+
+\begin{center}
+\resizebox{0.96\linewidth}{!}{%
+\begin{tikzpicture}[node distance=5mm]
+\node[box,fill=SoftBlue,draw=Blue] (a) {上下文词\\one-hot};
+\node[box,fill=SoftBlue,draw=Blue,right=of a] (b) {共享\\Embedding};
+\node[box,fill=SoftGreen,draw=Green,right=of b] (c) {平均池化\\$x_t$};
+\node[box,fill=SoftGreen,draw=Green,right=of c] (d) {隐藏层\\$\tanh$};
+\node[box,fill=SoftOrange,draw=Orange,right=of d] (e) {Softmax\\中心词};
+\draw[arr] (a) -- (b);\draw[arr] (b) -- (c);\draw[arr] (c) -- (d);\draw[arr] (d) -- (e);
+\end{tikzpicture}}
+\end{center}
+
+\begin{note}[手写伪代码]{SoftBlue}
+\begin{enumerate}
+  \item 建立词表，把语料转成 id 序列。
+  \item 对每个位置 $t$，收集窗口内非中心词 id，组成训练样本 $(C_t,w_t)$。
+  \item 查表得到 $E[C_t]$，对上下文向量求平均得到 $x_t$。
+  \item 计算 $h_t=\tanh(W_hx_t+b_h)$ 与 $p=\mathrm{softmax}(W_oh_t+b_o)$。
+  \item 用交叉熵对目标词 $w_t$ 求损失，反向传播更新 $E,W_h,b_h,W_o,b_o$。
+  \item 每轮输出平均 loss；训练结束保存 $E$ 作为词表示。
+\end{enumerate}
+\end{note}
+
+Skip-Gram 只把预测方向反过来：输入中心词 $w_t$，逐个预测窗口上下文 $w_j$。CBOW 训练快、对高频模式稳定；Skip-Gram 样本更多，通常对低频词更友好。
+
+\section{探索：问题与解决}
+\begin{tabular}{p{0.28\linewidth}p{0.36\linewidth}p{0.28\linewidth}}
+\toprule
+问题 & 原因 & 解法 \\
+\midrule
+完整 softmax 昂贵 & 每步归一化全词表 $V$ & negative sampling / hierarchical softmax \\
+高频词支配 & 共现次数不等于信息量 & subsampling / tf-idf 式重加权 \\
+OOV 与低频词差 & 词被当作不可拆原子 & fastText/subword/字符 n-gram \\
+一词多义 & 一个词只有一个静态向量 & ELMo/BERT 上下文化表示 \\
+长距离依赖弱 & 固定窗口只看局部 & RNN/Transformer 全句建模 \\
+词序信息弱 & CBOW 平均池化丢顺序 & 位置编码、序列模型、注意力 \\
+\bottomrule
+\end{tabular}
+
+\begin{note}[核心判断]{SoftGreen}
+CBOW/Skip-Gram 的历史价值是把离散符号放入连续语义空间；它们的根本局限是把语义压成“静态词点”。突破方向不是简单堆深 MLP，而是让表示沿三条线进化：从局部窗口到全局统计，从词级原子到子词组合，从静态向量到上下文化动态表示。
+\end{note}
+
+\section{创新性总结}
+本作业把词表示学习理解成“压缩与恢复”的过程：CBOW 把窗口上下文压缩为一个向量，再用它恢复中心词。若恢复失败，错误通常不是某个词孤立造成的，而是采样、词表、语义歧义和上下文范围共同造成的。因此，一个更现代的路线应是：先用负采样和高频词控制提高可训练性，再用 subword 解决泛化，最后用 Transformer/RNN 让同一个词在不同语境中拥有不同表示。这也自然引出第5讲的序列标注：词向量只是起点，真正的实体判断必须回到上下文中完成。
+
+\end{document}

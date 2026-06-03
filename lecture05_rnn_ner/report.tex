@@ -1,0 +1,116 @@
+%!TEX program = xelatex
+\documentclass[UTF8,10pt,a4paper,fontset=none]{ctexart}
+
+\usepackage[a4paper,top=1.1cm,bottom=1.1cm,left=1.25cm,right=1.25cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage[most]{tcolorbox}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+\setCJKmainfont{Heiti SC}
+\setCJKsansfont{Heiti SC}
+\setCJKmonofont{Hiragino Sans GB}
+
+\definecolor{Ink}{HTML}{172033}
+\definecolor{Blue}{HTML}{1F4E79}
+\definecolor{Green}{HTML}{2A9D8F}
+\definecolor{Orange}{HTML}{C86B1F}
+\definecolor{SoftBlue}{HTML}{EAF3F8}
+\definecolor{SoftGreen}{HTML}{EEF6EA}
+\definecolor{SoftOrange}{HTML}{F8EFE4}
+
+\setlength{\parindent}{1.5em}
+\setlength{\parskip}{0.08em}
+\linespread{1.02}
+\setlist[itemize]{leftmargin=1.25em,itemsep=0.04em,topsep=0.05em}
+\setlist[enumerate]{leftmargin=1.35em,itemsep=0.04em,topsep=0.05em}
+\ctexset{section={format=\large\bfseries,beforeskip=0.45em,afterskip=0.18em}}
+
+\newtcolorbox{note}[2][]{
+  enhanced,colback=#2,colframe=Ink!65,boxrule=0.45pt,arc=0.8mm,
+  left=1mm,right=1mm,top=0.7mm,bottom=0.7mm,title=#1,fonttitle=\bfseries\small
+}
+\tikzset{box/.style={draw,rounded corners=1pt,align=center,font=\scriptsize,minimum height=5.8mm,text width=2.05cm},arr/.style={-{Stealth[length=1.8mm]},line width=0.45pt}}
+
+\title{\vspace{-0.9cm}\textbf{第5讲：RNN命名实体识别}\\[-1mm]\normalsize 从单向序列状态到多粒度上下文融合}
+\author{高展沛}
+\date{\vspace{-0.45cm}2026年6月}
+
+\begin{document}
+\maketitle
+\vspace{-0.65cm}
+
+\section{课堂任务：RNN-NER 伪代码}
+命名实体识别输入句子 $x_1,\ldots,x_n$，输出同长度 BIO 标签 $y_1,\ldots,y_n$。单向 RNN 基线把左侧历史压入状态：
+\[
+h_t=\tanh(W_xE[x_t]+W_hh_{t-1}+b),\qquad
+s_t=W_yh_t+b_y,
+\]
+\[
+p(y_t\mid x_{\le t})=\mathrm{softmax}(s_t),\qquad
+\mathcal{L}=\frac{1}{n}\sum_t-\log p(y_t^\star\mid x_{\le t}).
+\]
+
+\begin{note}[训练伪代码]{SoftBlue}
+\begin{enumerate}
+  \item 建 token 词表和 BIO 标签表，如 \texttt{B-PER,I-PER,B-ORG,I-ORG,O}。
+  \item 初始化 embedding、RNN 参数和线性分类器。
+  \item 对每个句子从左到右递推 $h_t$，由 $s_t$ 预测当前位置标签。
+  \item 对所有位置求交叉熵平均，调用反向传播更新参数。
+  \item 验证时把预测 BIO 序列转换为实体 span，按实体级 precision/recall/F1 评测。
+\end{enumerate}
+\end{note}
+
+\begin{note}[解码伪代码]{SoftGreen}
+推理阶段逐词取 $\arg\max_y p(y_t)$ 得到初始标签；随后检查 BIO 合法性。若出现 \texttt{O I-ORG} 或 \texttt{B-PER I-LOC} 这类非法转移，可按规则改为 \texttt{B-ORG} 或置为 \texttt{O}。更好的做法是在顶层接 CRF，由 Viterbi 直接搜索全局合法最优序列。
+\end{note}
+
+\section{为什么单向 RNN 不够}
+NER 不是孤立词分类。实体边界常由左右词共同决定，例如“苹果 发布 新机”中的“苹果”更像组织，而“买了 苹果”中的“苹果”更像普通名词。单向 RNN 在位置 $t$ 只能直接看到 $x_{\le t}$，右侧证据要到未来才进入状态，当前标签判断天然滞后。同时，逐词 softmax 不知道标签之间的结构约束，容易输出局部高分但整体非法的 BIO 序列。
+
+\section{上下文增强方案}
+推荐的工程路线是 BiLSTM/GRU + 字符特征 + CRF：
+\[
+z_t=[e_t^{word};e_t^{char}],\quad
+\overrightarrow h_t=RNN_f(z_t,\overrightarrow h_{t-1}),
+\]
+\[
+\overleftarrow h_t=RNN_b(z_t,\overleftarrow h_{t+1}),\quad
+o_t=[\overrightarrow h_t;\overleftarrow h_t].
+\]
+CRF 分数为
+\[
+score(x,y)=\sum_t s_t[y_t]+\sum_t A[y_{t-1},y_t],
+\]
+其中 $A$ 学习标签转移规律，Viterbi 负责全局解码。
+
+\begin{center}
+\resizebox{0.96\linewidth}{!}{%
+\begin{tikzpicture}[node distance=5mm]
+\node[box,fill=SoftBlue,draw=Blue] (a) {word/char\\特征};
+\node[box,fill=SoftGreen,draw=Green,right=of a] (b) {BiLSTM\\左右上下文};
+\node[box,fill=SoftGreen,draw=Green,right=of b] (c) {线性层\\发射分数};
+\node[box,fill=SoftOrange,draw=Orange,right=of c] (d) {CRF\\标签结构};
+\node[box,fill=SoftOrange,draw=Orange,right=of d] (e) {实体span\\F1评测};
+\draw[arr] (a) -- (b);\draw[arr] (b) -- (c);\draw[arr] (c) -- (d);\draw[arr] (d) -- (e);
+\end{tikzpicture}}
+\end{center}
+
+\section{突破方案：多粒度上下文记忆}
+进一步的创新设计是加入文档级实体记忆。模型先抽取高置信实体，保存字符串、类型分布、别名和最近出现位置；后文遇到简称或歧义词时，把记忆向量与句内向量门控融合：
+\[
+g_t=\sigma(W_g[o_t;m_t]+b_g),\qquad
+r_t=g_t\odot o_t+(1-g_t)\odot m_t.
+\]
+当句内证据强时依赖 $o_t$，当当前句子模糊时调用文档记忆 $m_t$。若数据和算力允许，可把 BiLSTM encoder 替换为中文 BERT/MacBERT，再保留 CRF 作为结构化解码层。
+
+\begin{note}[最终判断]{SoftOrange}
+CBOW 学的是“词通常和谁共现”，NER 要判断“词此刻在上下文中扮演什么角色”。因此强 NER 系统必须同时利用字符形态、左右句内语境、标签转移约束和文档级实体历史；这比单向 RNN 更接近真实语言理解。
+\end{note}
+
+\end{document}
