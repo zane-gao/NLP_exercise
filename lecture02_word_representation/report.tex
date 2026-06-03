@@ -117,7 +117,7 @@ softmax & 目标 id 与词表 id 错位 & 用玩具词表检查最高概率词 \
 \end{tabular}
 \normalsize
 
-完整 softmax 下，每个样本输出层复杂度约为 $O(|V|m)$，因此它适合作为课堂基线而不是大词表工业方案。若改成 mini-batch，实现上只需把多个 $C_t$ padding 到同一长度，并用 mask 求平均；算法本质仍是“上下文汇聚 $\rightarrow$ 隐层变换 $\rightarrow$ 预测中心词”。
+完整 softmax 下，每个样本输出层复杂度约为 $O(|V|m)$。若改成 mini-batch，实现上只需把多个 $C_t$ padding 到同一长度，并用 mask 求平均；算法本质仍是“上下文汇聚 $\rightarrow$ 隐层变换 $\rightarrow$ 预测中心词”。
 
 \clearpage
 
@@ -155,7 +155,7 @@ CBOW/Skip-Gram 不是过时玩具，而是一个极简“语义压缩机”：�
 \end{note}
 
 \section{完成物与验收}
-本作业完整材料包括算法伪代码、问题分析、扩展方案和本报告。若要把伪代码落成工程，最小验证应包括：构造玩具语料检查 loss 是否下降；抽取近邻词检查语义聚类；对比完整 softmax 与负采样的训练速度；加入 OOV 测例检查 subword 是否优于纯词表查表。这样能把课堂算法、探索问题和工程验证闭成一条证据链。
+完整材料包括算法伪代码、问题分析、扩展方案和本报告。工程最小验证包括：构造玩具语料检查 loss 是否下降；抽取近邻词检查语义聚类；对比完整 softmax 与负采样的训练速度；加入 OOV 测例检查 subword 是否优于纯词表查表。
 
 \small
 \begin{tabular}{@{}p{0.22\linewidth}p{0.34\linewidth}p{0.36\linewidth}@{}}
@@ -186,6 +186,6 @@ Transformer 表示 & 多义词和长距离语境 & 模型重、可解释性下�
 \end{tabular}
 \normalsize
 
-最后的课程结论可以压缩为一句话：CBOW/Skip-Gram 给出的是“词的默认含义”，而现代 NLP 更需要“词在当前语境中的临时含义”。从这个角度看，第2讲并不是孤立的词向量练习，而是在为后续 RNN、Seq2Seq 与预训练语言模型建立共同的表示学习入口。
+最后结论可以压缩为一句话：CBOW/Skip-Gram 给出的是“词的默认含义”，而现代 NLP 更需要“词在当前语境中的临时含义”。从这个角度看，本次并不是孤立的词向量练习，而是在为后续 RNN、Seq2Seq 与预训练语言模型建立共同的表示学习入口。
 
 \end{document}

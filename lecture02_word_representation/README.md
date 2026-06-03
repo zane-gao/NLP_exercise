@@ -54,6 +54,22 @@ $$
 
 - [cbow_mlp_pseudocode.md](cbow_mlp_pseudocode.md)：朴素 CBOW 的训练伪代码。
 - [exploration.md](exploration.md)：CBOW/Skip-Gram 的局限与解决路径。
+- [../verification/lecture02_validation.py](../verification/lecture02_validation.py)：toy CBOW、负采样成本和 subword OOV 的最小工程验证。
+
+## 最小工程验证
+
+在仓库根目录运行：
+
+```bash
+python3 -m unittest tests.test_lecture02_validation -v
+```
+
+该验证会检查：
+
+- toy 语料上 CBOW 训练后 loss 是否下降。
+- `king` 的近邻中是否出现 `queen`，`cat` 的近邻中是否出现 `dog`。
+- 负采样输出打分次数是否远少于完整 softmax。
+- 纯词表查不到 OOV 时，subword 是否能构造出更接近相关词的向量。
 
 ## 核心结论
 

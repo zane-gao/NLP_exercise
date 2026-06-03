@@ -136,7 +136,7 @@ entity spans & $(l,r,type)$ & 评测时真正关心的实体级输出 \\
 \end{tikzpicture}}
 \end{center}
 
-推荐基线升级为 BiLSTM/GRU + CRF：
+故基线可升级为 BiLSTM/GRU + CRF：
 \[
 z_t=[e_t^{word};e_t^{char}],\quad
 \overrightarrow h_t=RNN_f(z_t,\overrightarrow h_{t-1}),\quad
@@ -174,7 +174,7 @@ CBOW 学的是“词通常和谁共现”，NER 要判断“词此刻在上下�
 \end{note}
 
 \section{完成物与验收}
-本作业给出 RNN-NER 伪代码、BIO 解码规则、BiLSTM-CRF 方案和文档记忆扩展。最小工程验证应包括：构造含非法 BIO 的样例检查修复规则；比较单向 RNN 与 BiRNN 的实体级 F1；加入字符特征后测试 OOV 实体；加入文档记忆后测试简称识别。这样能把“利用上下文”从口号落到可测指标上。
+本作业给出 RNN-NER 伪代码、BIO 解码规则、BiLSTM-CRF 方案和文档记忆扩展。最小工程验证包括：构造含非法 BIO 的样例检查修复规则；比较单向 RNN 与 BiRNN 的实体级 F1；加入字符特征后测试 OOV 实体；加入文档记忆后测试简称识别。
 
 \small
 \begin{tabular}{@{}p{0.24\linewidth}p{0.32\linewidth}p{0.36\linewidth}@{}}
@@ -205,6 +205,6 @@ softmax $\rightarrow$ CRF & 是否利用标签结构 & 非法 BIO 与类型漂�
 \end{tabular}
 \normalsize
 
-这份设计的突破性不在于堆叠名词，而在于给每一种上下文一个明确职责：字符处理未登录词，双向状态处理左右证据，CRF 处理标签结构，文档记忆处理跨句复现。职责清楚，实验才可复现。
+这份设计给每一种上下文一个明确职责：字符处理未登录词，双向状态处理左右证据，CRF 处理标签结构，文档记忆处理跨句复现。
 
 \end{document}

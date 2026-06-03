@@ -55,6 +55,22 @@ BIO tag distribution
 
 - [rnn_ner_pseudocode.md](rnn_ner_pseudocode.md)：基于 RNN 的 NER 训练、解码与评测伪代码。
 - [context_design.md](context_design.md)：上下文增强方案，从 BiRNN 到多粒度上下文融合。
+- [../verification/lecture05_validation.py](../verification/lecture05_validation.py)：BIO 修复、上下文增强和文档记忆的最小工程验证。
+
+## 最小工程验证
+
+在仓库根目录运行：
+
+```bash
+python3 -m unittest tests.test_lecture05_validation -v
+```
+
+该验证会检查：
+
+- 非法 `I-X` 标签能否被修复成合法 BIO 序列。
+- 双向上下文是否优于只看左侧上下文。
+- 字符后缀规则是否能帮助 OOV 实体。
+- 文档级记忆是否能识别后文简称实体。
 
 ## 核心结论
 

@@ -20,6 +20,15 @@
 │   ├── context_design.md
 │   ├── report.tex
 │   └── report.pdf
+├── verification/
+│   ├── README.md
+│   ├── lecture02_validation.py
+│   ├── lecture05_validation.py
+│   └── run_all.py
+└── tests/
+    ├── test_lecture02_validation.py
+    ├── test_lecture05_validation.py
+    └── test_run_all_validation.py
 ```
 
 ## 最短阅读路径
@@ -32,6 +41,26 @@
 6. 阅读 [lecture05_rnn_ner/context_design.md](lecture05_rnn_ner/context_design.md)，查看上下文增强方案。
 7. 阅读 [lecture02_word_representation/report.pdf](lecture02_word_representation/report.pdf)，查看第 2 讲不超过两页的最终报告。
 8. 阅读 [lecture05_rnn_ner/report.pdf](lecture05_rnn_ner/report.pdf)，查看第 5 讲不超过两页的最终报告。
+9. 运行 [verification/README.md](verification/README.md) 中的最小工程验证，检查报告中的验证点是否可执行。
+
+## 最小工程验证
+
+一键运行全部验证：
+
+```bash
+python3 -m verification.run_all
+```
+
+运行测试套件：
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+验证覆盖：
+
+- 第 2 讲：toy CBOW loss 下降、近邻语义聚类、完整 softmax 与负采样输出打分次数对比、subword OOV。
+- 第 5 讲：非法 BIO 修复、单向上下文与双向上下文对比、字符特征 OOV、文档记忆简称识别。
 
 ## 报告编译
 
@@ -62,7 +91,7 @@ latexmk -c
 
 - LaTeX 报告使用 `xelatex` 编译。
 - 每个作业独立成文：第 2 讲 `Pages = 2`，第 5 讲 `Pages = 2`。
-- 本仓库不包含可训练 Python 工程；交付形式为伪代码、方法探索和课程报告。
+- 已补充最小 Python 工程验证；验证代码只用于复现实验检查点，不替代完整训练框架。
 
 ## 提交说明
 
